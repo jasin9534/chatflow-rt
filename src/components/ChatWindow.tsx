@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Send, Phone, Video, MoreVertical } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { z } from 'zod';
 
 interface Profile {
   id: string;
@@ -27,6 +28,13 @@ interface ChatWindowProps {
   onVideoCall?: () => void;
   onAudioCall?: () => void;
 }
+
+const messageSchema = z.object({
+  content: z.string()
+    .trim()
+    .min(1, 'Message cannot be empty')
+    .max(5000, 'Message too long (max 5000 characters)')
+});
 
 const ChatWindow = ({ roomId, currentUser, onVideoCall, onAudioCall }: ChatWindowProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -178,12 +186,20 @@ const ChatWindow = ({ roomId, currentUser, onVideoCall, onAudioCall }: ChatWindo
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!newMessage.trim()) return;
+    const validation = messageSchema.safeParse({ content: newMessage });
+    if (!validation.success) {
+      toast({
+        title: 'Invalid message',
+        description: validation.error.errors[0].message,
+        variant: 'destructive',
+      });
+      return;
+    }
 
     const { error } = await supabase.from('messages').insert({
       room_id: roomId,
       sender_id: currentUser.id,
-      content: newMessage.trim(),
+      content: validation.data.content,
     });
 
     if (error) {
